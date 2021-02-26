@@ -7,5 +7,6 @@
 
     <ItemGroup>
       <PackageReference Include="CommonStructureLibrary" Version="2021.1.22" />
+      <PackageReference Include="YamlDotNet" Version="9.1.4" />
     </ItemGroup>
 </Project>

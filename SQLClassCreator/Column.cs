@@ -57,6 +57,8 @@ namespace SQLClassCreator
             {"ENUM", ColumnType.Enum},
 
             {"STRUCT", ColumnType.Struct},
+
+            {"CLASS", ColumnType.Class },
         };
         public static Regex LengthFinder = new Regex(@"\((\d+)\)",RegexOptions.Compiled);
         public readonly string ColumnName;
@@ -84,8 +86,9 @@ namespace SQLClassCreator
                     ColumnType.ByteArray => "byte[]",
                     ColumnType.Guid => "Guid" + (nullable?"?":""),
                     ColumnType.DateTime => "DateTime" + (nullable?"?":""),
-                    ColumnType.Enum => ColumnName + "Enum" + (nullable?"?":""),
-                    ColumnType.Struct => ColumnName + "Struct" + (nullable?"?":""),
+                    ColumnType.Enum => ColumnName + (nullable?"?":""),
+                    ColumnType.Struct => ColumnName  + (nullable?"?":""),
+                    ColumnType.Class => ColumnName,
                     _ => "<FIXME>"
                 };
             }
@@ -99,6 +102,7 @@ namespace SQLClassCreator
                     ColumnType.UnsignedLong => "long" + (nullable?"?":""),
                     ColumnType.Enum => "long" + (nullable?"?":""),
                     ColumnType.Struct => "byte[]",
+                    ColumnType.Class => "byte[]",
                     _ => CSharpTypeName
                 };
             }
@@ -111,7 +115,7 @@ namespace SQLClassCreator
                 return type switch
                 {
                     ColumnType.Enum => "((ulong"+(nullable?"?":"")+")",
-                    ColumnType.Struct => "MemoryMarshal.AsBytes(new " + CSharpTypeName.TrimEnd('?') + "[]{",
+                    //ColumnType.Struct => "MemoryMarshal.AsBytes(new " + CSharpTypeName.TrimEnd('?') + "[]{",
                     _ => ""
                 };
             }
@@ -124,7 +128,8 @@ namespace SQLClassCreator
                 {
                     ColumnType.UnsignedLong => (nullable?".Value":"") + ".ToLong()",
                     ColumnType.Enum => ")" + (nullable?".Value":"") + ".ToLong()",
-                    ColumnType.Struct => (nullable?".Value":"") + "}.AsSpan()).ToArray()",
+                    ColumnType.Struct => (nullable?".Value":"") + ".ToByteArray()",
+                    ColumnType.Class => ".ToByteArray()",
                     _ => ""
                 };
             }
@@ -136,7 +141,8 @@ namespace SQLClassCreator
                 return type switch
                 {
                     ColumnType.Enum => "(" + CSharpTypeName +")(",
-                    ColumnType.Struct => "MemoryMarshal.AsRef<" + CSharpTypeName.TrimEnd('?') + ">(",
+                    //ColumnType.Struct => "MemoryMarshal.AsRef<" + CSharpTypeName.TrimEnd('?') + ">(",
+                    ColumnType.Class => "new " + CSharpTypeName + "(",
                     _ => ""
                 };
             }
@@ -149,7 +155,8 @@ namespace SQLClassCreator
                 {
                     ColumnType.UnsignedLong => (nullable?"?":"") + ".ToUlong()",
                     ColumnType.Enum => (nullable?"?":"") + ".ToUlong())",
-                    ColumnType.Struct => ")",
+                    ColumnType.Struct => ".ToStruct<" + CSharpTypeName.TrimEnd('?') + ">()",
+                    ColumnType.Class => ")",
                     _ => ""
                 };
             }
@@ -177,6 +184,7 @@ namespace SQLClassCreator
                     ColumnType.DateTime => "TIMESTAMP" + (nullable?"":" NOT NULL"),
                     ColumnType.Enum => "BIGINT" + (nullable?"":" NOT NULL"),
                     ColumnType.Struct => "BYTEA" + (nullable?"":" NOT NULL"),
+                    ColumnType.Class => "BYTEA" + (nullable ? "" : " NOT NULL"),
                     _ => "<FIXME>"
                 };
             }
@@ -235,6 +243,7 @@ namespace SQLClassCreator
         //x86 vs ARM
         //Dependant on the ability of Memory Marshal to do the conversion.
         Struct,                //BYTEA
+        Class,
         Unknown
     }
 }

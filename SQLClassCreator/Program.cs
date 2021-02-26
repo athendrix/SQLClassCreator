@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using YamlDotNet.RepresentationModel;
 
 namespace SQLClassCreator
 {
@@ -13,6 +14,12 @@ namespace SQLClassCreator
             string NameSpace;
             List<Column> Columns = new List<Column>();
             List<Column> PrimaryKeys = new List<Column>();
+
+            //TODO: YAML definitions so we can add Foreign Keys, Unique Indexes on columns, options to define classes/structs/enums elseware (so they don't get overwritten)
+            //Table Truncation
+            //YamlStream ys = new YamlStream();
+            //using StreamReader = new StreamReader()
+
             #region UserPrompts
             
             Console.Clear();

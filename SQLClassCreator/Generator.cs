@@ -18,6 +18,7 @@ namespace SQLClassCreator
         public void Libraries()
         {
             IndentAdd("using System;");
+            IndentAdd("using System.IO;");
             IndentAdd("using System.Collections.Generic;");
             IndentAdd("using System.Data;");
             IndentAdd("using System.Linq;");
@@ -132,10 +133,10 @@ namespace SQLClassCreator
         private void SelectHelper(string TableName, string returnType, bool partial, params Tuple<Column,int>[] CO)
         {
             IndentAdd("public async " + (partial?"IAsyncEnumerable":"Task") + "<IDBSet<" + returnType + ">> " +
-            "SelectByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, " + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " PK" + x.Item2)) + ")" );
+            "SelectByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, " + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")" );
             EnterBlock();
             IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @PK{x.Item2}"))};"",");
-            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", "+x.Item1.CSharpConvertPrivatePrepend+"PK" + x.Item2.ToString() + x.Item1.CSharpConvertPrivateAppend +" "))+"}}))");
+            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", "+x.Item1.CSharpConvertPrivatePrepend + x.Item1.ColumnName + x.Item1.CSharpConvertPrivateAppend +" "))+"}}))");
             EnterBlock();
             if(partial)
             {
@@ -201,10 +202,10 @@ namespace SQLClassCreator
         private void DeleteHelper(string TableName, bool partial, params Tuple<Column,int>[] CO)
         {
             IndentAdd("public Task<int> DeleteByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, "
-            + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " PK" + x.Item2)) + ")");
+            + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")");
             EnterBlock();
             IndentAdd($@"return sql.ExecuteNonQuery(""DELETE FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @PK{x.Item2}"))};"",");
-            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", " + x.Item1.CSharpConvertPrivatePrepend + "PK" + x.Item2.ToString() + x.Item1.CSharpConvertPrivateAppend + " "))+"}});");
+            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", " + x.Item1.CSharpConvertPrivatePrepend + x.Item1.ColumnName + x.Item1.CSharpConvertPrivateAppend + " "))+"}});");
             ExitBlock();
         }
         #endregion
@@ -317,30 +318,55 @@ namespace SQLClassCreator
             EndRegion();
         }
         #endregion
-        #region Enums and Structs
+        #region Enums, Structs, and Classes
         public void EnumsAndStructs(List<Column> Columns)
         {
             foreach(Column c in Columns)
             {
-                switch(c.type)
+                switch (c.type)
                 {
                     case ColumnType.Enum:
-                    IndentAdd("[Flags]");
-                    IndentAdd("public enum " + c.CSharpTypeName.TrimEnd('?') + " : ulong");
-                    EnterBlock();
-                    IndentAdd("NoFlags = 0,");
-                    for(int i = 0; i < 16; i++)
-                    {
-                        IndentAdd("Flag" + (i + 1).ToString() + ((i+1) >= 10?"  ":"   ") + "= 1UL << " + i.ToString() + ",");
-                    }
-                    ExitBlock();
-                    break;
+                        IndentAdd("[Flags]");
+                        IndentAdd("public enum " + c.CSharpTypeName.TrimEnd('?') + " : ulong");
+                        EnterBlock();
+                        IndentAdd("NoFlags = 0,");
+                        for (int i = 0; i < 16; i++)
+                        {
+                            IndentAdd("Flag" + (i + 1).ToString() + ((i + 1) >= 10 ? "  " : "   ") + "= 1UL << " + i.ToString() + ",");
+                        }
+                        ExitBlock();
+                        break;
                     case ColumnType.Struct:
-                    IndentAdd("public struct " + c.CSharpTypeName.TrimEnd('?'));
-                    EnterBlock();
-                    IndentAdd("uint Dummy;");
-                    ExitBlock();
-                    break;
+                        IndentAdd("public struct " + c.CSharpTypeName.TrimEnd('?'));
+                        EnterBlock();
+                        IndentAdd("public uint Dummy;");
+                        ExitBlock();
+                        break;
+                    case ColumnType.Class:
+                        IndentAdd("public class " + c.CSharpTypeName.TrimEnd('?') + ":IBinaryWritable");
+                        EnterBlock();
+                        IndentAdd("public " + c.CSharpTypeName.TrimEnd('?') + "(byte[] data)");
+                        EnterBlock();
+                        IndentAdd("using (MemoryStream ms = new MemoryStream(data))");
+                        IndentAdd("using (BinaryReader br = new BinaryReader(ms))");
+                        EnterBlock();
+                        IndentAdd("Dummy = br.ReadString();");
+                        IndentAdd("Dummy2 = br.ReadStruct<Guid>();");
+                        ExitBlock();
+                        ExitBlock();
+                        IndentAdd("public byte[] ToByteArray()");
+                        EnterBlock();
+                        IndentAdd("using (MemoryStream ms = new MemoryStream())");
+                        IndentAdd("using (BinaryWriter bw = new BinaryWriter(ms))");
+                        EnterBlock();
+                        IndentAdd("bw.WriteMany(Dummy,Dummy2);");
+                        IndentAdd("return ms.ToArray();");
+                        ExitBlock();
+                        ExitBlock();
+                        IndentAdd("public string Dummy;");
+                        IndentAdd("public Guid Dummy2;");
+                        ExitBlock();
+                        break;
                     default: continue;
                 }
             }
