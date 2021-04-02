@@ -46,7 +46,7 @@ namespace SQLClassCreator
             EnterBlock();
         }
         public void EndFactory() => ExitBlock();
-        public void CreateDB(string TableName, List<Column> PrimaryKeys, List<Column> Columns)
+        public void CreateDB(string TableName, List<Column> PrimaryKeys, List<Column> Columns, string[] ExtraSQLLines)
         {
             IndentAdd("public Task<int> CreateDB(SQL sql)");
             EnterBlock();
@@ -56,12 +56,22 @@ namespace SQLClassCreator
             {
                 IndentAdd($@"""\""{Columns[i].ColumnName}\"" {Columns[i].SQLTypeName}, "" +");
             }
-            IndentAdd($@"""PRIMARY KEY(\""{string.Join(@"\"", \""",PrimaryKeys.Select((x) => x.ColumnName))}\""));"");");
+            IndentAdd($@"""PRIMARY KEY(\""{string.Join(@"\"", \""", PrimaryKeys.Select((x) => x.ColumnName))}\"")"" +");
+            if(ExtraSQLLines != null)
+            {
+                foreach(string SQLLine in ExtraSQLLines)
+                {
+                    IndentAdd("\"" + SQLLine.Trim().Replace("\"", "\\\"") + "\" +");
+                }
+            }
+            IndentAdd("\");\");");
             ExitBlock();
         }
         public void GetEnumerator(string TableName, List<Column> PrimaryKeys)
         {
-            IndentAdd($"public IEnumerable<IDBSet<{string.Join(", ",PrimaryKeys.Select((x) => x.CSharpTypeName))}>> GetEnumerator(IDataReader dr)");
+            string types = string.Join(", ", PrimaryKeys.Select((x) => x.CSharpTypeName));
+            IndentAdd($"IEnumerable<IDBSet<{ types }>> IDBSetFactory<{types}>.GetEnumerator(IDataReader dr) => GetEnumerator(dr);");
+            IndentAdd($"public IEnumerable<{TableName}Row> GetEnumerator(IDataReader dr)");
             EnterBlock();
             IndentAdd("while(dr.Read())");
             EnterBlock();
@@ -80,7 +90,8 @@ namespace SQLClassCreator
             }
             
             Region("Select");
-            IndentAdd("public async IAsyncEnumerable<IDBSet<" + returnType + ">> Select(SQL sql)");
+            IndentAdd("IAsyncEnumerable<IDBSet<" + returnType + ">> IDBSetFactory<" + returnType + ">.Select(SQL sql) => Select(sql);");
+            IndentAdd("public async IAsyncEnumerable<" + TableName + "Row> Select(SQL sql)");
             EnterBlock();
             IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"";""))");
             EnterBlock();
@@ -130,13 +141,17 @@ namespace SQLClassCreator
             }
             EndRegion();
         }
-        private void SelectHelper(string TableName, string returnType, bool partial, params Tuple<Column,int>[] CO)
+        private void SelectHelper(string TableName, string iReturnType, bool partial, params Tuple<Column,int>[] CO)
         {
-            IndentAdd("public async " + (partial?"IAsyncEnumerable":"Task") + "<IDBSet<" + returnType + ">> " +
-            "SelectByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, " + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")" );
+            string parentType = (partial ? "IAsyncEnumerable" : "Task");
+            string FnNumSuffix = (partial ? string.Join("", CO.Select((x) => x.Item2)) : "");
+            string FnParams = "(SQL sql, " + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")";
+            string BareFnParams = string.Join(", ", CO.Select((x) => x.Item1.ColumnName));
+            IndentAdd((partial ? "": "async ") + parentType + "<IDBSet<" + iReturnType + ">> IDBSetFactory<" + iReturnType + ">.SelectByPK" + FnNumSuffix + FnParams + " => " + 
+                (partial ? "" : "await ") + "SelectByPK" + FnNumSuffix + "(sql, " + BareFnParams + ");");
+            IndentAdd("public async " + parentType + "<"+TableName+"Row> SelectByPK" + FnNumSuffix + FnParams );
             EnterBlock();
-            IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @PK{x.Item2}"))};"",");
-            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", "+x.Item1.CSharpConvertPrivatePrepend + x.Item1.ColumnName + x.Item1.CSharpConvertPrivateAppend +" "))+"}}))");
+            IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2 -1}"))};"", " + BareFnParams + "))");
             EnterBlock();
             if(partial)
             {
@@ -201,11 +216,11 @@ namespace SQLClassCreator
         }
         private void DeleteHelper(string TableName, bool partial, params Tuple<Column,int>[] CO)
         {
+            string BareFnParams = string.Join(", ", CO.Select((x) => x.Item1.ColumnName));
             IndentAdd("public Task<int> DeleteByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, "
             + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")");
             EnterBlock();
-            IndentAdd($@"return sql.ExecuteNonQuery(""DELETE FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @PK{x.Item2}"))};"",");
-            IndentAdd("new Dictionary<string,object>(){{"+string.Join("}, {",CO.Select((x) => " \"@PK" + x.Item2.ToString() + "\", " + x.Item1.CSharpConvertPrivatePrepend + x.Item1.ColumnName + x.Item1.CSharpConvertPrivateAppend + " "))+"}});");
+            IndentAdd($@"return sql.ExecuteNonQuery(""DELETE FROM \""{TableName}\"" WHERE {string.Join(" AND ", CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2 - 1}"))};"", " + BareFnParams + ");");
             ExitBlock();
         }
         #endregion
@@ -282,39 +297,51 @@ namespace SQLClassCreator
             {
                 DataColumns.Add(Columns[i]);
             }
+            Dictionary<string, string> CN = new Dictionary<string, string>();
+            List<string> ColumnNumbers = new List<string>();
+            for(int i = 0; i < Columns.Count; i++)
+            {
+                ColumnNumbers.Add("@" + i);
+                CN.Add(Columns[i].ColumnName,"@" + i);
+            }
             string SQLCols = @"\""" + string.Join(@"\"", \""",Columns.Select((x) => x.ColumnName)) + @"\""";
-            string SQLParams = "@" + string.Join(", @",Columns.Select((x) => x.ColumnName));
-            string SetData = string.Join(", ",DataColumns.Select((x) => "\\\"" + x.ColumnName + "\\\" = @" + x.ColumnName));
-            string WhereData = string.Join(" AND ",PrimaryKeys.Select((x) => "\\\"" + x.ColumnName + "\\\" = @" + x.ColumnName));
+            string SQLParams = string.Join(", ", ColumnNumbers);
+            string SetData = string.Join(", ",DataColumns.Select((x) => "\\\"" + x.ColumnName + "\\\" = " + CN[x.ColumnName]));
+            string WhereData = string.Join(" AND ",PrimaryKeys.Select((x) => "\\\"" + x.ColumnName + "\\\" = " + CN[x.ColumnName]));
             string ConflictKeys = string.Join(", ",PrimaryKeys.Select((x) => "\\\"" + x.ColumnName + "\\\""));
+            string ToObjectList = string.Join(", ", Columns.Select((x) => "_" + x.ColumnName));
             IndentAdd("public Task<int> Insert(SQL sql)");
             EnterBlock();
             IndentAdd($@"return sql.ExecuteNonQuery(""INSERT INTO \""{TableName}\"" ({SQLCols}) "" +");
-            IndentAdd($"\"VALUES({SQLParams});\",ToDictionary());");
+            IndentAdd($"\"VALUES({SQLParams});\", ToArray());");
             ExitBlock();
             IndentAdd("public Task<int> Update(SQL sql)");
             EnterBlock();
             IndentAdd($@"return sql.ExecuteNonQuery(""UPDATE \""{TableName}\"" "" +");
             IndentAdd($"\"SET {SetData} \" +");
-            IndentAdd($"\"WHERE {WhereData};\",ToDictionary());");
+            IndentAdd($"\"WHERE {WhereData};\", ToArray());");
             ExitBlock();
             IndentAdd("public Task<int> Upsert(SQL sql)");
             EnterBlock();
             IndentAdd($@"return sql.ExecuteNonQuery(""INSERT INTO \""{TableName}\"" ({SQLCols}) "" +");
             IndentAdd($"\"VALUES({SQLParams}) \" +");
             IndentAdd($"\"ON CONFLICT ({ConflictKeys}) DO UPDATE \" +");
-            IndentAdd($"\"SET {SetData};\",ToDictionary());");
+            IndentAdd($"\"SET {SetData};\", ToArray());");
             ExitBlock();
-            IndentAdd("public Dictionary<string,object> ToDictionary()");
+            IndentAdd("public object[] ToArray()");
             EnterBlock();
-            IndentAdd("return new Dictionary<string, object>()");
-            EnterBlock();
-            for(int i = 0; i< Columns.Count; i++)
-            {
-                IndentAdd("{\"@" + Columns[i].ColumnName + "\", _" + Columns[i].ColumnName + "},");
-            }
-            ExitInlineBlock();
+            IndentAdd("return new object[] { " + ToObjectList + " };");
             ExitBlock();
+            //IndentAdd("public Dictionary<string,object> ToDictionary()");
+            //EnterBlock();
+            //IndentAdd("return new Dictionary<string, object>()");
+            //EnterBlock();
+            //for(int i = 0; i< Columns.Count; i++)
+            //{
+            //    IndentAdd("{\"@" + Columns[i].ColumnName + "\", _" + Columns[i].ColumnName + "},");
+            //}
+            //ExitInlineBlock();
+            //ExitBlock();
             EndRegion();
         }
         #endregion

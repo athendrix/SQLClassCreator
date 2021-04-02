@@ -83,7 +83,7 @@ namespace SQLClassCreator
             gen.BlankLine();
             gen.BeginNamespace(NameSpace);
             gen.BeginFactory(TableName,PrimaryKeys);
-            gen.CreateDB(TableName,PrimaryKeys,Columns);
+            gen.CreateDB(TableName,PrimaryKeys,Columns,null);
             gen.GetEnumerator(TableName,PrimaryKeys);
             gen.Select(TableName,PrimaryKeys);
             gen.Delete(TableName,PrimaryKeys);

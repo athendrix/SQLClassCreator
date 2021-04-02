@@ -99,6 +99,7 @@ namespace SQLClassCreator
             {
                 return type switch
                 {
+                    ColumnType.Byte => "byte[]",
                     ColumnType.UnsignedLong => "long" + (nullable?"?":""),
                     ColumnType.Enum => "long" + (nullable?"?":""),
                     ColumnType.Struct => "byte[]",
@@ -114,7 +115,9 @@ namespace SQLClassCreator
             {
                 return type switch
                 {
-                    ColumnType.Enum => "((ulong"+(nullable?"?":"")+")",
+                    ColumnType.Byte => "new byte[] {",
+                    ColumnType.UnsignedLong => "(long"+ (nullable ? "?" : "") + ")",
+                    ColumnType.Enum => "(long"+(nullable?"?":"")+")",
                     //ColumnType.Struct => "MemoryMarshal.AsBytes(new " + CSharpTypeName.TrimEnd('?') + "[]{",
                     _ => ""
                 };
@@ -126,8 +129,9 @@ namespace SQLClassCreator
             {
                 return type switch
                 {
-                    ColumnType.UnsignedLong => (nullable?".Value":"") + ".ToLong()",
-                    ColumnType.Enum => ")" + (nullable?".Value":"") + ".ToLong()",
+                    ColumnType.Byte => "}",
+                    //ColumnType.UnsignedLong => (nullable?".Value":"") + ".ToLong()",
+                    //ColumnType.Enum => ")" + (nullable?".Value":"") + ".ToLong()",
                     ColumnType.Struct => (nullable?".Value":"") + ".ToByteArray()",
                     ColumnType.Class => ".ToByteArray()",
                     _ => ""
@@ -140,7 +144,8 @@ namespace SQLClassCreator
             {
                 return type switch
                 {
-                    ColumnType.Enum => "(" + CSharpTypeName +")(",
+                    ColumnType.Enum => "(" + CSharpTypeName +")",
+                    ColumnType.UnsignedLong => "(ulong"+ (nullable ? "?" : "") + ")",
                     //ColumnType.Struct => "MemoryMarshal.AsRef<" + CSharpTypeName.TrimEnd('?') + ">(",
                     ColumnType.Class => "new " + CSharpTypeName + "(",
                     _ => ""
@@ -153,8 +158,9 @@ namespace SQLClassCreator
             {
                 return type switch
                 {
-                    ColumnType.UnsignedLong => (nullable?"?":"") + ".ToUlong()",
-                    ColumnType.Enum => (nullable?"?":"") + ".ToUlong())",
+                    ColumnType.Byte => "[0]",
+                    //ColumnType.UnsignedLong => (nullable?"?":"") + ".ToUlong()",
+                    //ColumnType.Enum => (nullable?"?":"") + ".ToUlong())",
                     ColumnType.Struct => ".ToStruct<" + CSharpTypeName.TrimEnd('?') + ">()",
                     ColumnType.Class => ")",
                     _ => ""
@@ -169,7 +175,7 @@ namespace SQLClassCreator
                 return type switch
                 {
                     ColumnType.Boolean => "BOOLEAN" + (nullable?"":" NOT NULL"),
-                    ColumnType.Byte => "BYTEA(1)" + (nullable?"":" NOT NULL"),
+                    ColumnType.Byte => "BYTEA" + (nullable?"":" NOT NULL"),
                     ColumnType.Char => "CHAR(1)" + (nullable?"":" NOT NULL"),
                     ColumnType.Short => "SMALLINT" + (nullable?"":" NOT NULL"),
                     ColumnType.Integer => "INTEGER" + (nullable?"":" NOT NULL"),
