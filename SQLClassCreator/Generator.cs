@@ -83,10 +83,10 @@ namespace SQLClassCreator
         public void Select(string TableName, List<Column> PrimaryKeys)
         {
             string returnType = string.Join(",",PrimaryKeys.Select((x) => x.CSharpTypeName));
-            Tuple<Column,int>[] CO = new Tuple<Column, int>[PrimaryKeys.Count];
+            ValueTuple<Column,int>[] CO = new ValueTuple<Column, int>[PrimaryKeys.Count];
             for(int i = 0; i < CO.Length; i++)
             {
-                CO[i] = new Tuple<Column, int>(PrimaryKeys[i],i + 1);
+                CO[i] = new ValueTuple<Column, int>(PrimaryKeys[i],i + 1);
             }
             
             Region("Select");
@@ -141,17 +141,21 @@ namespace SQLClassCreator
             }
             EndRegion();
         }
-        private void SelectHelper(string TableName, string iReturnType, bool partial, params Tuple<Column,int>[] CO)
+        private void SelectHelper(string TableName, string iReturnType, bool partial, params ValueTuple<Column,int>[] CO)
         {
             string parentType = (partial ? "IAsyncEnumerable" : "Task");
             string FnNumSuffix = (partial ? string.Join("", CO.Select((x) => x.Item2)) : "");
             string FnParams = "(SQL sql, " + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")";
             string BareFnParams = string.Join(", ", CO.Select((x) => x.Item1.ColumnName));
+            for(int i = 0; i< CO.Length; i++)
+            {
+                CO[i].Item2 = i;
+            }
             IndentAdd((partial ? "": "async ") + parentType + "<IDBSet<" + iReturnType + ">> IDBSetFactory<" + iReturnType + ">.SelectByPK" + FnNumSuffix + FnParams + " => " + 
                 (partial ? "" : "await ") + "SelectByPK" + FnNumSuffix + "(sql, " + BareFnParams + ");");
             IndentAdd("public async " + parentType + "<"+TableName+"Row> SelectByPK" + FnNumSuffix + FnParams );
             EnterBlock();
-            IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2 -1}"))};"", " + BareFnParams + "))");
+            IndentAdd($@"using (IDataReader dr = await sql.ExecuteReader(""SELECT * FROM \""{TableName}\"" WHERE {string.Join(" AND ",CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2}"))};"", " + BareFnParams + "))");
             EnterBlock();
             if(partial)
             {
@@ -170,10 +174,10 @@ namespace SQLClassCreator
         public void Delete(string TableName, List<Column> PrimaryKeys)
         {
             Region("Delete");
-            Tuple<Column,int>[] CO = new Tuple<Column, int>[PrimaryKeys.Count];
+            ValueTuple<Column,int>[] CO = new ValueTuple<Column, int>[PrimaryKeys.Count];
             for(int i = 0; i < CO.Length; i++)
             {
-                CO[i] = new Tuple<Column, int>(PrimaryKeys[i],i + 1);
+                CO[i] = new ValueTuple<Column, int>(PrimaryKeys[i],i + 1);
             }
             switch(CO.Length)
             {
@@ -214,13 +218,17 @@ namespace SQLClassCreator
             }
             EndRegion();
         }
-        private void DeleteHelper(string TableName, bool partial, params Tuple<Column,int>[] CO)
+        private void DeleteHelper(string TableName, bool partial, params ValueTuple<Column,int>[] CO)
         {
             string BareFnParams = string.Join(", ", CO.Select((x) => x.Item1.ColumnName));
             IndentAdd("public Task<int> DeleteByPK" + (partial?string.Join("",CO.Select((x)=> x.Item2)):"") + "(SQL sql, "
             + string.Join(", ", CO.Select((x) => x.Item1.CSharpTypeName + " " + x.Item1.ColumnName)) + ")");
+            for (int i = 0; i < CO.Length; i++)
+            {
+                CO[i].Item2 = i;
+            }
             EnterBlock();
-            IndentAdd($@"return sql.ExecuteNonQuery(""DELETE FROM \""{TableName}\"" WHERE {string.Join(" AND ", CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2 - 1}"))};"", " + BareFnParams + ");");
+            IndentAdd($@"return sql.ExecuteNonQuery(""DELETE FROM \""{TableName}\"" WHERE {string.Join(" AND ", CO.Select((x) => $@"\""{x.Item1.ColumnName}\"" = @{x.Item2}"))};"", " + BareFnParams + ");");
             ExitBlock();
         }
         #endregion

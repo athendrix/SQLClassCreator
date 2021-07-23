@@ -6,7 +6,12 @@
   </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="CommonStructureLibrary" Version="2021.1.22" />
       <PackageReference Include="YamlDotNet" Version="9.1.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="CommonStructureLibrary">
+        <HintPath>D:\SiO2Projects\CommonStructureLibrary\CommonStructureLibrary\bin\Debug\netstandard2.1\CommonStructureLibrary.dll</HintPath>
+      </Reference>
     </ItemGroup>
 </Project>
