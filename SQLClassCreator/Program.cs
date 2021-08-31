@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using YamlDotNet.RepresentationModel;
+using CSL.SQL.ClassCreator;
+using System.IO;
 
 namespace SQLClassCreator
 {
@@ -10,93 +11,147 @@ namespace SQLClassCreator
 
         static void Main(string[] args)
         {
-            string TableName;
-            string NameSpace;
+            TextReader toRead;
+            bool prompts;
+            if(args != null && args.Length > 0 && File.Exists(args[0]))
+            {
+                prompts = false;
+                toRead = new StringReader(File.ReadAllText(args[0]));
+            }
+            else
+            {
+                prompts = true;
+                toRead = Console.In;
+            }
+            string TableName = null;
+            string NameSpace = null;
             List<Column> Columns = new List<Column>();
             List<Column> PrimaryKeys = new List<Column>();
-
-            //TODO: YAML definitions so we can add Foreign Keys, Unique Indexes on columns, options to define classes/structs/enums elseware (so they don't get overwritten)
-            //Table Truncation
-            //YamlStream ys = new YamlStream();
-            //using StreamReader = new StreamReader()
+            List<string> ExtraSQL = new List<string>();
 
             #region UserPrompts
-            
-            Console.Clear();
-            Console.WriteLine("Enter Table Name:");
-            TableName = Console.ReadLine();
-            Console.Clear();
-            Console.WriteLine("Enter Namespace Name:");
-            NameSpace = Console.ReadLine();
-
-            Console.Clear();
-            while(true)
+            bool ClearConsole = prompts;
+            if (ClearConsole)
             {
-                
-                Console.WriteLine("Enter Key Column Name (Blank to end):");
-                string keycolumnname = Console.ReadLine().Trim().Replace(" ", "");
+                try
+                {
+                    Console.Clear();
+                }
+                catch (Exception)
+                {
+                    ClearConsole = false;
+                }
+            }
+            if (prompts) { Console.Error.WriteLine("Enter Table Name:"); }
+            while (string.IsNullOrWhiteSpace(TableName) || TableName.Trim().StartsWith('#'))
+            {
+                TableName = toRead.ReadLine();
+            }
+            if (ClearConsole) { Console.Clear(); }
+            if (prompts) { Console.Error.WriteLine("Enter Namespace Name:"); }
+            while (string.IsNullOrWhiteSpace(NameSpace) || NameSpace.Trim().StartsWith('#'))
+            {
+                NameSpace = toRead.ReadLine();
+            }
+
+            if (ClearConsole) { Console.Clear(); }
+            while (true)
+            {
+                if (prompts) { Console.Error.WriteLine("Enter Key Column Name (Blank to end):"); }
+                string keycolumnname = null;
+                while(keycolumnname == null || keycolumnname.StartsWith('#'))
+                {
+                    keycolumnname = toRead.ReadLine().Trim().Replace(" ", "");
+                }
                 if(string.IsNullOrWhiteSpace(keycolumnname)) { break; }
 
-                Console.WriteLine("Enter Key Column Type:");
-                string keyusertype = Console.ReadLine().Trim().ToUpper();
+                if (prompts) { Console.Error.WriteLine("Enter Key Column Type:"); }
+                string keyusertype = null;
+                while (keyusertype == null || keyusertype.StartsWith('#'))
+                {
+                    keyusertype = toRead.ReadLine().Trim().ToUpper();
+                }
+                if (string.IsNullOrWhiteSpace(keyusertype)) { continue; }
+
                 Column c = new Column(keycolumnname,keyusertype);
                 if (c.type == ColumnType.Unknown)
                 {
-                    Console.Clear();
-                    Console.WriteLine("Invalid Type. " + keyusertype + " was not found. Please try again.");
+                    if (ClearConsole) { Console.Clear(); }
+                    Console.Error.WriteLine("Invalid Type. " + keyusertype + " was not found. Please try again.");
                 }
                 else
                 {
                     PrimaryKeys.Add(c);
                     Columns.Add(c);
-                    Console.Clear();
+                    if (ClearConsole) { Console.Clear(); }
                 }
             }
-            Console.Clear();
+            if (ClearConsole) { Console.Clear(); }
             while (true)
             {
-                
-                Console.WriteLine("Enter Column Name (Blank to end):");
-                string columnname = Console.ReadLine().Trim().Replace(" ", "");
+                if (prompts) { Console.Error.WriteLine("Enter Column Name (Blank to end):"); }
+                string columnname = null;
+                while (columnname == null || columnname.StartsWith('#'))
+                {
+                    columnname = toRead.ReadLine().Trim().Replace(" ", "");
+                }
                 if (string.IsNullOrWhiteSpace(columnname)) { break; }
 
-                Console.WriteLine("Enter Column Type:");
-                string usertype = Console.ReadLine().Trim().ToUpper();
+                if (prompts) { Console.Error.WriteLine("Enter Column Type:"); }
+                string usertype = null;
+                while (usertype == null || usertype.StartsWith('#'))
+                {
+                    usertype = toRead.ReadLine().Trim().ToUpper();
+                }
+                if (string.IsNullOrWhiteSpace(usertype)) { continue; }
+
                 Column c = new Column(columnname,usertype);
                 if (c.type == ColumnType.Unknown)
                 {
-                    Console.Clear();
-                    Console.WriteLine("Invalid Type. " + usertype + " was not found. Please try again.");
+                    if (ClearConsole) { Console.Clear(); }
+                    Console.Error.WriteLine("Invalid Type. " + usertype + " was not found. Please try again.");
                 }
                 else
                 {
                     Columns.Add(c);
-                    Console.Clear();
+                    if (ClearConsole) { Console.Clear(); }
                 }
             }
-            Console.Clear();
+            if (ClearConsole) { Console.Clear(); }
+            if (prompts)
+            {
+                Console.Error.WriteLine("Enter any Extra SQL lines to add to the Table Creation Command.");
+                Console.Error.WriteLine("Things like Foreign Keys or unique Indexes would go well here.");
+            }
             
-            #endregion 
-            
-            Generator gen = new Generator();
-            gen.Libraries();
-            gen.BlankLine();
-            gen.BeginNamespace(NameSpace);
-            gen.BeginFactory(TableName,PrimaryKeys);
-            gen.CreateDB(TableName,PrimaryKeys,Columns,null);
-            gen.GetEnumerator(TableName,PrimaryKeys);
-            gen.Select(TableName,PrimaryKeys);
-            gen.Delete(TableName,PrimaryKeys);
-            gen.EndFactory();
-            gen.BeginRowClass(TableName,PrimaryKeys);
-            gen.Properties(PrimaryKeys,Columns);
-            gen.Constructors(TableName,PrimaryKeys,Columns);
-            gen.IDBSetFunctions(TableName,PrimaryKeys,Columns);
-            gen.EndRowClass();
-            gen.EnumsAndStructs(Columns);
-            gen.EndNamespace();
+            string sqlline = null;
+            while (sqlline == null || !string.IsNullOrWhiteSpace(sqlline))
+            {
+                sqlline = toRead.ReadLine();
+                if (string.IsNullOrWhiteSpace(sqlline)) { break; }
+                ExtraSQL.Add(sqlline.Trim());
+            }
+            #endregion
 
-            Console.WriteLine(gen.ToString());
+            //Generator gen = new Generator();
+            //gen.Libraries();
+            //gen.BlankLine();
+            //gen.BeginNamespace(NameSpace);
+            //gen.BeginFactory(TableName,PrimaryKeys);
+            //gen.CreateDB(TableName,PrimaryKeys,Columns,null);
+            //gen.GetEnumerator(TableName,PrimaryKeys);
+            //gen.Select(TableName,PrimaryKeys);
+            //gen.Delete(TableName,PrimaryKeys);
+            //gen.EndFactory();
+            //gen.BeginRowClass(TableName,PrimaryKeys);
+            //gen.Properties(PrimaryKeys,Columns);
+            //gen.Constructors(TableName,PrimaryKeys,Columns);
+            //gen.IDBSetFunctions(TableName,PrimaryKeys,Columns);
+            //gen.EndRowClass();
+            //gen.EnumsAndStructs(Columns);
+            //gen.EndNamespace();
+
+            Console.WriteLine(Generator.Generate(NameSpace, TableName, PrimaryKeys, Columns, ExtraSQL.ToArray()));
         }
     }
 }
