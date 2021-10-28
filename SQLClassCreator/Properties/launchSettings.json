@@ -2,7 +2,7 @@
   "profiles": {
     "SQLClassCreator": {
       "commandName": "Project",
-      "commandLineArgs": "Example2.txt"
+      "commandLineArgs": "D:\\SiO2Projects\\BasicAuthWrapper\\SecurityWrapper\\Data\\Users.tabledef"
     }
   }
 }
