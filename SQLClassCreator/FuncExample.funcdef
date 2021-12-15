@@ -1,0 +1,14 @@
+﻿[Metadata]
+Function Name=FuncExample
+Namespace=ExampleNamespace.SomeSubNamespace
+Language=SQL
+Volatility=Stable
+Single Row=True
+
+[Output]
+Now = DateTime
+Version = String
+
+[SQL]
+=Select Now(), 
+=version()
