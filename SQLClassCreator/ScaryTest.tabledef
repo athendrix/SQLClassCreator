@@ -1,0 +1,9 @@
+﻿[Metadata]
+Table Name=Scary Table
+Namespace=ExampleNamespace.SomeSubNamespace
+Primary Keys = 1
+
+[Columns]
+ID     = BYTE
+Data29 = Enum
+Data30 = String?
