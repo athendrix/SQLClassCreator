@@ -7,6 +7,10 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="CommonStructureLibrary" Version="2022.1.21" />
+  </ItemGroup>
+
     <ItemGroup>
       <None Update="ScaryTest.tabledef">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
